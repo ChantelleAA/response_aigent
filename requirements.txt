@@ -1,0 +1,8 @@
+beautifulsoup4
+requests
+sentence-transformers
+chromadb
+llama-cpp-python
+gradio
+tf-keras
+json
