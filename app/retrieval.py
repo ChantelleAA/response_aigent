@@ -2,23 +2,27 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from sentence_transformers import SentenceTransformer
-import chromadb
+from chromadb import PersistentClient
 from app.config import VECTOR_COLLECTION
+
 os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-embedder = SentenceTransformer("all-MiniLM-L6-v2")
-db = chromadb.Client()
-collection = db.get_or_create_collection(VECTOR_COLLECTION)
+# Define where to persist the vector store
+PERSIST_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "chroma")
+os.makedirs(PERSIST_DIR, exist_ok=True)
 
+embedder = SentenceTransformer("all-MiniLM-L6-v2")
+db = PersistentClient(path=PERSIST_DIR)
 
 def update_vector_store(collection_name, docs):
-    db.delete_collection(collection_name)
+    if collection_name in [c.name for c in db.list_collections()]:
+        db.delete_collection(collection_name)
     collection = db.get_or_create_collection(collection_name)
     embeddings = embedder.encode(docs)
     for i, text in enumerate(docs):
         collection.add(documents=[text], embeddings=[embeddings[i]], ids=[str(i)])
-
+    db.persist()
 
 def query_vector_store(query, collection_name):
     collection = db.get_or_create_collection(collection_name)
