@@ -1,22 +1,42 @@
 {
-  "hello": {
-    "answer": "Hi there! How can I help you today?",
-    "timestamp": "2025-05-24 11:32:57"
+  "What services does NileEdge offer?": {
+    "answer": "NileEdge Innovations offers services in AI solutions, data science, workflow automation, business intelligence, medical AI, and professional training tailored for businesses and institutions.",
+    "timestamp": "2025-05-24 00:00:00"
   },
-  "": {
-    "answer": "",
-    "timestamp": "2025-05-24 11:33:03"
+  "Where is NileEdge Innovations located?": {
+    "answer": "NileEdge Innovations is based in Lagos, Nigeria, at 17 Fatai Oloko Crescent.",
+    "timestamp": "2025-05-24 00:00:00"
   },
-  "where can i find nileedge building": {
-    "answer": "NileEdge Building is located in 123 Main Street in downtown Nile. It is a modern and innovative building that features cutting-edge technology and sustainable design. The building is home to several NileEdge Innovations offices, as well as other businesses and organizations. You can easily find NileEdge Building by looking for its striking glass facade and sleek design.",
-    "timestamp": "2025-05-24 11:33:57"
+  "How can I contact NileEdge?": {
+    "answer": "You can reach us via email at info@nileedgeinnovations.org or call us at +234 90 69210 225. We’re happy to hear from you!",
+    "timestamp": "2025-05-24 00:00:00"
   },
-  "the company building?": {
-    "answer": "NileEdge Innovations is a cutting-edge technology company that specializes in the development of innovative software solutions. We are located in a modern, eco-friendly building that features state-of-the-art technology and amenities. Our building is designed to foster creativity, collaboration, and productivity, and we are committed to creating a workplace that is both comfortable and inspiring for our team members. The building is also equipped with the latest security measures to ensure the safety and well-being of our employees.",
-    "timestamp": "2025-05-24 11:35:18"
+  "Do you offer training for teams?": {
+    "answer": "Yes, NileEdge provides hands-on professional training for teams and organizations in Python, AI, and data analysis. Training can be customized to fit your goals.",
+    "timestamp": "2025-05-24 00:00:00"
   },
-  "where is the location of the nileedge innovations company? which country, city and specific location": {
-    "answer": "NileEdge Innovations is a company located in Cairo, Egypt. The specific location of the company is not publicly available.",
-    "timestamp": "2025-05-24 11:36:19"
+  "Can individuals join your training programs?": {
+    "answer": "Absolutely. We run open workshops and bootcamps in Data Science, Python, and AI for students, beginners, and professionals. Check our website for upcoming sessions.",
+    "timestamp": "2025-05-24 00:00:00"
+  },
+  "What is your typical project timeline?": {
+    "answer": "Timelines depend on the scope. Small automation tasks may take a few days, while complex AI projects may take several weeks. We always communicate clear milestones.",
+    "timestamp": "2025-05-24 00:00:00"
+  },
+  "Do you work with startups?": {
+    "answer": "Yes! NileEdge is passionate about empowering startups with scalable AI and data solutions tailored to their stage and growth trajectory.",
+    "timestamp": "2025-05-24 00:00:00"
+  },
+  "What industries do you serve?": {
+    "answer": "We serve clients across healthcare, education, business intelligence, and digital transformation. Our solutions are flexible and industry-aware.",
+    "timestamp": "2025-05-24 00:00:00"
+  },
+  "Do you build custom AI agents?": {
+    "answer": "Yes, we design and build intelligent AI agents and workflow automation systems to improve operational efficiency and reduce manual tasks.",
+    "timestamp": "2025-05-24 00:00:00"
+  },
+  "Can you help improve my existing system?": {
+    "answer": "Definitely. We audit and modernize existing systems—whether it's automating reporting, upgrading dashboards, or embedding AI in your workflow.",
+    "timestamp": "2025-05-24 00:00:00"
   }
 }

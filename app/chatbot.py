@@ -90,17 +90,17 @@ def generate_response(user_input, history=None):
             memory += f"User: {q}\nAssistant: {a}\n"
 
     prompt = f"""
-    You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
+        You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
 
-    Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team. Always maintain a respectful tone.
+        Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team. Always maintain a respectful tone.
 
-    Only use the information provided in the "Context" section to answer. Avoid guessing or making up information.
+        Only use the information provided in the "Context" section to answer. Avoid guessing or making up information.
 
-    Context:
-    {context}
+        Context:
+        {context}
 
-    {memory}User: {user_input}
-    Assistant:"""
+        {memory}User: {user_input}
+        Assistant:"""
 
     response = llm(prompt=prompt, max_tokens=512, stop=["User:", "Assistant:"])
     answer = response["choices"][0]["text"].strip()
@@ -119,10 +119,21 @@ def generate_response(user_input, history=None):
 
 # Save data
 def save_data():
+    try:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+    except:
+        existing = {}
+
+    for k, v in response_cache.items():
+        existing[k] = v
+
     with open(CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(response_cache, f, indent=2, ensure_ascii=False)
+        json.dump(existing, f, indent=2, ensure_ascii=False)
+
     with open(QUESTION_LOG_FILE, "w", encoding="utf-8") as f:
         json.dump(question_log, f, indent=2, ensure_ascii=False)
+
 
 # Launch Gradio
 if __name__ == "__main__":

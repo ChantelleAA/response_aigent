@@ -23,5 +23,6 @@ def update_vector_store(collection_name, docs):
 def query_vector_store(query, collection_name):
     collection = db.get_or_create_collection(collection_name)
     q_embed = embedder.encode([query])[0]
-    results = collection.query(query_embeddings=[q_embed], n_results=3)
-    return results["documents"][0]
+    results = collection.query(query_embeddings=[q_embed], n_results=10)
+    docs = results.get("documents", [])
+    return docs[0] if docs and docs[0] else []
