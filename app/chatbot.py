@@ -83,10 +83,18 @@ def generate_response(user_input, history=None):
 
 
 def save_data():
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(response_cache, f, indent=2, ensure_ascii=False)
-    with open(QUESTION_LOG_FILE, "w", encoding="utf-8") as f:
-        json.dump(question_log, f, indent=2, ensure_ascii=False)
+    try:
+        with open(CACHE_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            response_cache = json.loads(content) if content else {}
+    except (FileNotFoundError, json.JSONDecodeError):
+        response_cache = {}
+    try:
+        with open(QUESTION_LOG_FILE, "r", encoding="utf-8") as f:
+            content = f.read().strip()
+            question_log = json.loads(content) if content else []
+    except (FileNotFoundError, json.JSONDecodeError):
+        question_log = []
 
 # Launch Gradio
 if __name__ == "__main__":
