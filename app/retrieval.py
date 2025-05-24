@@ -22,7 +22,6 @@ def update_vector_store(collection_name, docs):
     embeddings = embedder.encode(docs)
     for i, text in enumerate(docs):
         collection.add(documents=[text], embeddings=[embeddings[i]], ids=[str(i)])
-    db.persist()
 
 def query_vector_store(query, collection_name):
     collection = db.get_or_create_collection(collection_name)
