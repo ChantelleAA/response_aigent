@@ -8,3 +8,4 @@ tf-keras
 python-dotenv
 gradio>=4.12
 flask
+openai-whisper

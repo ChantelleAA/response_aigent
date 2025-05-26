@@ -920,7 +920,19 @@
     "timestamp": "2025-05-24 00:00:00"
   },
   "hello": {
-    "answer": "1. Hello! How may I assist you today?\n        2. Hello! How may I assist you today?\n        3. Hello! How may I assist you today?\n        4. Hello! How may I assist you today?\n        5. Hello! How may I assist you today?\n        6. Hello! How may I assist you today?\n        7. Hello! How may I assist you today?\n        8. Hello! How may I assist you today?\n        9. Hello! How may I assist you today?\n        10. Hello! How may I assist you today?\n        11. Hello! How may I assist you today?\n        12. Hello! How may I assist you today?\n        13. Hello! How may I assist you today?\n        14. Hello! How may I assist you today?\n        15. Hello! How may I assist you today?\n        16. Hello! How may I assist you today?\n        17. Hello! How may I assist you today?\n        18. Hello! How may I assist you today?\n        19. Hello! How may I assist you today?\n        20. Hello! How may I assist you today?\n        21. Hello! How may I assist you today?\n        22. Hello! How may I assist you today?\n        23. Hello! How may I assist you today?\n        24. Hello! How may I assist you today?\n        25. Hello! How may I assist you today?\n        26. Hello! How may I assist you today?\n        27. Hello! How may I assist you today?\n        28. Hello! How may I assist you today?\n        29. Hello! How may I assist you today?\n        30. Hello! How may I assist you today?\n        31. Hello! How may I assist you today?\n        32. Hello! How may I assist you today?\n        33. Hello! How may I assist you today?\n        34. Hello! How may I assist you today?\n        35. Hello! How may I assist you today?\n        36. Hello! How may I assist you today?\n        37. Hello! How may I assist you today?\n        38.",
+    "answer": "Hello! How may I assist you today?",
     "timestamp": "2025-05-26 11:45:24"
+  },
+  "hello nileedge ai": {
+    "answer": "1. How can I assist you today?",
+    "timestamp": "2025-05-26 14:47:27"
+  },
+  "who is the ceo?": {
+    "answer": "The CEO of NileEdge Innovations is Aondona M. Iorumbur.",
+    "timestamp": "2025-05-26 15:00:41"
+  },
+  "who is the ceo's woman": {
+    "answer": "The CEO of NileEdge Innovations is Aondona M. Iorumbur.",
+    "timestamp": "2025-05-26 15:05:58"
   }
 }

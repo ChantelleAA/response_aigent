@@ -77,7 +77,6 @@ def generate_response(user_input: str, history=None):
 
     memory = ""
     if history:
-        # Convert Gradio message format to simple history
         valid_history = []
         if isinstance(history, list):
             for item in history[-10:]:  # Last 10 messages
@@ -113,11 +112,11 @@ def generate_response(user_input: str, history=None):
     try:
         token_count = 0
         for tok in engine.stream(prompt,
-                                 max_tokens=512,  # Increased from 256
+                                 max_tokens=512, 
                                  stop=["User:", "Assistant:"],
                                  temperature=0.7,
                                  top_p=0.9):
-            if tok:  # Only yield non-empty tokens
+            if tok: 
                 answer_parts.append(tok)
                 yield tok
                 token_count += 1

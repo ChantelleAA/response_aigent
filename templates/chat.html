@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>NileEdge AI Chat</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+</head>
+<body>
+  <div class="chat-wrapper">
+    <div class="chat-header">
+      <img src="/static/nileedge_logo_round.png" alt="NileEdge Logo">
+      <h1>NileEdge AI</h1>
+    </div>
+    <div id="chat-box" class="chat-box"></div>
+    <form id="chat-form" class="chat-form">
+      <input type="text" id="user-input" placeholder="Ask something..." autocomplete="off" />
+      <button type="submit">Send</button>
+      <button type="button" id="mic-button">🎙️ Speak</button>
+      <button type="button" id="clear-button">Clear Chat</button>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('chat-form');
+    const input = document.getElementById('user-input');
+    const box = document.getElementById('chat-box');
+    const mic = document.getElementById('mic-button');
+    const clearButton = document.getElementById('clear-button');
+
+    // Ask user on load if they want to continue previous chat
+    window.onload = () => {
+      const existing = localStorage.getItem("nileedge_chat");
+      if (existing) {
+        const confirmContinue = confirm("Continue previous chat?");
+        if (confirmContinue) {
+          const history = JSON.parse(existing);
+          history.forEach(msg => box.innerHTML += msg);
+        } else {
+          localStorage.removeItem("nileedge_chat");
+        }
+      }
+      box.scrollTop = box.scrollHeight;
+    };
+
+    const appendMessage = (content, sender) => {
+      const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      const html = `
+        <div class="chat-bubble ${sender}-bubble">
+          ${content}
+          <div class="timestamp">${time}</div>
+        </div>`;
+      box.innerHTML += html;
+      saveToHistory(html);
+    };
+
+    const saveToHistory = (html) => {
+      const history = JSON.parse(localStorage.getItem("nileedge_chat") || "[]");
+      history.push(html);
+      localStorage.setItem("nileedge_chat", JSON.stringify(history));
+    };
+
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const message = input.value.trim();
+      if (!message) return;
+
+      appendMessage(message, 'user');
+      input.value = '';
+      box.scrollTop = box.scrollHeight;
+
+      const loading = document.createElement('div');
+      loading.className = 'chat-bubble bot-bubble';
+      loading.id = 'typing';
+      loading.innerHTML = 'Bot is typing...';
+      box.appendChild(loading);
+      box.scrollTop = box.scrollHeight;
+
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message })
+      });
+
+      const data = await res.json();
+      box.removeChild(loading);
+      appendMessage(data.reply, 'bot');
+      box.scrollTop = box.scrollHeight;
+    };
+
+    // 🎙️ Voice input using MediaRecorder + Whisper backend
+    let mediaRecorder;
+    let audioChunks = [];
+
+    mic.onclick = async () => {
+      if (!navigator.mediaDevices || !window.MediaRecorder) {
+        alert("Your browser doesn't support audio recording.");
+        return;
+      }
+
+      mic.disabled = true;
+      mic.textContent = "Recording... (click again to stop)";
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+
+      audioChunks = [];
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) audioChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append("audio", audioBlob, "recording.webm");
+
+        mic.textContent = "Transcribing...";
+        const res = await fetch("/transcribe", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await res.json();
+        input.value = data.text || "[Could not transcribe]";
+        mic.textContent = "🎙️ Speak";
+        mic.disabled = false;
+      };
+
+      mediaRecorder.start();
+
+      // Toggle to stop recording
+      mic.onclick = () => {
+        mediaRecorder.stop();
+      };
+    };
+
+    // Clear chat manually
+    clearButton.onclick = () => {
+      localStorage.removeItem("nileedge_chat");
+      box.innerHTML = '';
+    };
+  </script>
+</body>
+</html>
