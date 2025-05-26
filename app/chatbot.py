@@ -8,18 +8,12 @@ from app.retrieval import query_vector_store
 from app.config    import VECTOR_COLLECTION
 from app.llm       import get_engine
 
-# ─────────────────────────────────────────────
-# env + model
-# ─────────────────────────────────────────────
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 os.environ["TF_CPP_MIN_LOG_LEVEL"]  = "2"
 
 engine   = get_engine()                        # loads GGUF once
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# ─────────────────────────────────────────────
-# paths
-# ─────────────────────────────────────────────
 DATA_DIR           = pathlib.Path("data")
 DATA_DIR.mkdir(exist_ok=True)
 
@@ -37,9 +31,6 @@ def _load_json(path, default):
 response_cache = OrderedDict(_load_json(CACHE_FILE, {}))
 question_log   = _load_json(QUESTION_LOG_FILE, [])
 
-# ─────────────────────────────────────────────
-# semantic FAQ
-# ─────────────────────────────────────────────
 def semantic_faq_match(user_input: str):
     if not response_cache:
         return None
@@ -52,9 +43,6 @@ def semantic_faq_match(user_input: str):
         return response_cache[questions[best_idx]]["answer"]
     return None
 
-# ─────────────────────────────────────────────
-# main generator
-# ─────────────────────────────────────────────
 def generate_response(user_input: str, history=None):
     """Yields tokens so the UI can stream them."""
     if not user_input.strip():
@@ -80,41 +68,75 @@ def generate_response(user_input: str, history=None):
         return
 
     # 4) RAG context + short memory
-    context_list = query_vector_store(user_input, VECTOR_COLLECTION)
-    context      = "\n".join(context_list)
+    try:
+        context_list = query_vector_store(user_input, VECTOR_COLLECTION)
+        context = "\n".join(context_list) if context_list else ""
+    except Exception as e:
+        print(f"Error querying vector store: {e}")
+        context = ""
 
     memory = ""
     if history:
-        valid_history = [item for item in (history or []) if isinstance(item, (list, tuple)) and len(item) == 2]
+        # Convert Gradio message format to simple history
+        valid_history = []
+        if isinstance(history, list):
+            for item in history[-10:]:  # Last 10 messages
+                if isinstance(item, dict) and "role" in item and "content" in item:
+                    if item["role"] == "user":
+                        user_msg = item["content"]
+                    elif item["role"] == "assistant" and item["content"].strip():
+                        valid_history.append([user_msg, item["content"]])
+                elif isinstance(item, (list, tuple)) and len(item) == 2:
+                    valid_history.append(item)
+        
+        # Use last 5 exchanges for memory
         for q, a in valid_history[-5:]:
-            memory += f"User: {q}\nAssistant: {a}\n"
-
+            if q and a:  # Ensure both are not empty
+                memory += f"User: {q}\nAssistant: {a}\n"
 
     prompt = f"""
-You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
+        You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
 
-Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team.
+        Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team.
 
-Only use the information provided in the "Context" section to answer. Avoid guessing.
+        Only use the information provided in the "Context" section to answer. Avoid guessing.
 
-Context:
-{context}
+        Context:
+        {context}
 
-{memory}User: {user_input}
-Assistant:"""
+        {memory}User: {user_input}
+        Assistant:
+        
+        """
 
     answer_parts = []
-    for tok in engine.stream(prompt,
-                             max_tokens=256,
-                             stop=["User:", "Assistant:"],
-                             temperature=0.7,
-                             top_p=0.9):
-        answer_parts.append(tok)
-        yield tok                        # <-- stream outward
+    try:
+        token_count = 0
+        for tok in engine.stream(prompt,
+                                 max_tokens=512,  # Increased from 256
+                                 stop=["User:", "Assistant:"],
+                                 temperature=0.7,
+                                 top_p=0.9):
+            if tok:  # Only yield non-empty tokens
+                answer_parts.append(tok)
+                yield tok
+                token_count += 1
+                
+                # Safety check to prevent infinite loops
+                if token_count > 1000:
+                    break
+    except Exception as e:
+        print(f"Error generating response: {e}")
+        fallback = ("I'm having trouble generating a response right now. "
+                   "Please visit https://www.nileedgeinnovations.org "
+                   "or contact us for assistance.")
+        yield fallback
+        return
 
     answer = "".join(answer_parts).strip()
 
-    if len(answer.split()) < 5:
+    # Check if we got a meaningful response
+    if not answer or len(answer.split()) < 3:
         fallback = ("I'm not entirely sure how to answer that. "
                     "Please visit https://www.nileedgeinnovations.org "
                     "or contact us for assistance.")
@@ -131,31 +153,13 @@ Assistant:"""
 
     save_data()
 
-
-# ─────────────────────────────────────────────
-# persist
-# ─────────────────────────────────────────────
 def save_data():
-    CACHE_FILE.write_text(json.dumps(response_cache,
-                                     indent=2, ensure_ascii=False),
-                          encoding="utf-8")
-    QUESTION_LOG_FILE.write_text(json.dumps(question_log,
-                                            indent=2, ensure_ascii=False),
-                                 encoding="utf-8")
-
-# ─────────────────────────────────────────────
-# minimal CLI test
-# ─────────────────────────────────────────────
-# if __name__ == "__main__":
-#     import gradio as gr, atexit
-#     atexit.register(save_data)
-
-#     def chat(user_msg, hist):
-#         bot_stream = generate_response(user_msg, hist)
-#         hist = hist or []
-#         hist.append([user_msg, ""])
-#         for tok in bot_stream:
-#             hist[-1][1] += tok
-#             yield hist, hist
-
-#     gr.ChatInterface(fn=chat, chatbot=gr.Chatbot(), title="Ask NileEdge AI").launch(share=True)
+    try:
+        CACHE_FILE.write_text(json.dumps(response_cache,
+                                         indent=2, ensure_ascii=False),
+                              encoding="utf-8")
+        QUESTION_LOG_FILE.write_text(json.dumps(question_log,
+                                                indent=2, ensure_ascii=False),
+                                     encoding="utf-8")
+    except Exception as e:
+        print(f"Error saving data: {e}")
