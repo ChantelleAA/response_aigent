@@ -6,7 +6,8 @@ from app.chatbot import generate_response, save_data
 # ─────────────────────────────────────────────
 # paths
 # ─────────────────────────────────────────────
-DATA_DIR     = pathlib.Path("data")
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parent  
+DATA_DIR = PROJECT_ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)                 # create once
 HISTORY_FILE = DATA_DIR / "chat_history.json"
 

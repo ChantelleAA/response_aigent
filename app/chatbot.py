@@ -43,6 +43,117 @@ def semantic_faq_match(user_input: str):
         return response_cache[questions[best_idx]]["answer"]
     return None
 
+# def generate_response(user_input: str, history=None):
+#     """Yields tokens so the UI can stream them."""
+#     if not user_input.strip():
+#         yield "Please enter a valid question so I can assist you."
+#         return
+
+#     key = user_input.strip().lower()
+
+#     # 1) semantic FAQ hit
+#     faq_ans = semantic_faq_match(user_input)
+#     if faq_ans:
+#         yield faq_ans
+#         return
+
+#     # 2) question log
+#     question_log.append({"question": key,
+#                          "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")})
+
+#     # 3) literal cache hit
+#     if key in response_cache:
+#         response_cache.move_to_end(key)
+#         yield response_cache[key]["answer"]
+#         return
+
+#     # 4) RAG context + short memory
+#     try:
+#         context_list = query_vector_store(user_input, VECTOR_COLLECTION)
+#         context = "\n".join(context_list) if context_list else ""
+#     except Exception as e:
+#         print(f"Error querying vector store: {e}")
+#         context = ""
+
+#     memory = ""
+#     if history:
+#         # Convert Gradio message format to simple history
+#         valid_history = []
+#         if isinstance(history, list):
+#             user_msg = None  # ensure it exists
+#             for item in history[-10:]:  # Last 10 messages
+#                 if isinstance(item, dict) and "role" in item and "content" in item:
+#                     if item["role"] == "user":
+#                         user_msg = item["content"]
+#                     elif item["role"] == "assistant" and item["content"].strip():
+#                         if user_msg is not None:
+#                             valid_history.append([user_msg, item["content"]])
+#                             user_msg = None  # reset after pairing
+        
+#         # Use last 5 exchanges for memory
+#         for q, a in valid_history[-5:]:
+#             if q and a:  # Ensure both are not empty
+#                 memory += f"User: {q}\nAssistant: {a}\n"
+
+#     prompt = f"""
+#         You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
+
+#         Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team.
+
+#         Only use the information provided in the "Context" section to answer. Avoid guessing.
+
+#         Context:
+#         {context}
+
+#         {memory}User: {user_input}
+#         Assistant:
+        
+#         """
+
+#     answer_parts = []
+#     try:
+#         token_count = 0
+#         for tok in engine.stream(prompt,
+#                                  max_tokens=512,  # Increased from 256
+#                                  stop=["User:", "Assistant:"],
+#                                  temperature=0.7,
+#                                  top_p=0.9):
+#             if tok:  # Only yield non-empty tokens
+#                 answer_parts.append(tok)
+#                 yield tok
+#                 token_count += 1
+                
+#                 # Safety check to prevent infinite loops
+#                 if token_count > 1000:
+#                     break
+#     except Exception as e:
+#         print(f"Error generating response: {e}")
+#         fallback = ("I'm having trouble generating a response right now. "
+#                    "Please visit https://www.nileedgeinnovations.org "
+#                    "or contact us for assistance.")
+#         yield fallback
+#         return
+
+#     answer = "".join(answer_parts).strip()
+
+#     # Check if we got a meaningful response
+#     if not answer or len(answer.split()) < 3:
+#         fallback = ("I'm not entirely sure how to answer that. "
+#                     "Please visit https://www.nileedgeinnovations.org "
+#                     "or contact us for assistance.")
+#         yield fallback
+#         return
+
+#     # update cache (LRU)
+#     response_cache[key] = {
+#         "answer": answer,
+#         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+#     }
+#     if len(response_cache) > CACHE_LIMIT:
+#         del response_cache[next(iter(response_cache))]
+
+#     save_data()
+
 def generate_response(user_input: str, history=None):
     """Yields tokens so the UI can stream them."""
     if not user_input.strip():
@@ -58,8 +169,10 @@ def generate_response(user_input: str, history=None):
         return
 
     # 2) question log
-    question_log.append({"question": key,
-                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")})
+    question_log.append({
+        "question": key,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+    })
 
     # 3) literal cache hit
     if key in response_cache:
@@ -67,62 +180,63 @@ def generate_response(user_input: str, history=None):
         yield response_cache[key]["answer"]
         return
 
-    # 4) RAG context + short memory
+    # 4) RAG context + memory
     try:
         context_list = query_vector_store(user_input, VECTOR_COLLECTION)
-        context = "\n".join(context_list) if context_list else ""
+        context = "\n".join(context_list) if context_list else (
+            "NileEdge Innovations is a technology company based in Ghana, offering services in AI, data science, automation, and medical AI. "
+            "Visit https://www.nileedgeinnovations.org to learn more or contact our team."
+        )
     except Exception as e:
         print(f"Error querying vector store: {e}")
-        context = ""
+        context = (
+            "NileEdge Innovations is a technology company based in Ghana, offering services in AI, data science, automation, and medical AI. "
+            "Visit https://www.nileedgeinnovations.org to learn more or contact our team."
+        )
 
     memory = ""
     if history:
-        # Convert Gradio message format to simple history
         valid_history = []
         if isinstance(history, list):
-            for item in history[-10:]:  # Last 10 messages
+            user_msg = None
+            for item in history[-10:]:
                 if isinstance(item, dict) and "role" in item and "content" in item:
                     if item["role"] == "user":
                         user_msg = item["content"]
                     elif item["role"] == "assistant" and item["content"].strip():
-                        valid_history.append([user_msg, item["content"]])
-                elif isinstance(item, (list, tuple)) and len(item) == 2:
-                    valid_history.append(item)
-        
+                        if user_msg is not None:
+                            valid_history.append([user_msg, item["content"]])
+                            user_msg = None  # reset after pairing
+
         # Use last 5 exchanges for memory
         for q, a in valid_history[-5:]:
-            if q and a:  # Ensure both are not empty
+            if q and a:
                 memory += f"User: {q}\nAssistant: {a}\n"
 
     prompt = f"""
-        You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
+You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
 
-        Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team.
+Use the information in the "Context" section as your primary source. If the context is not enough, use your general knowledge and recent conversation history to assist the user, but stay polite and avoid fabricating facts about the company.
 
-        Only use the information provided in the "Context" section to answer. Avoid guessing.
+Context:
+{context}
 
-        Context:
-        {context}
-
-        {memory}User: {user_input}
-        Assistant:
-        
-        """
+{memory}User: {user_input}
+Assistant:
+"""
 
     answer_parts = []
     try:
         token_count = 0
         for tok in engine.stream(prompt,
-                                 max_tokens=512,  # Increased from 256
+                                 max_tokens=512,
                                  stop=["User:", "Assistant:"],
                                  temperature=0.7,
                                  top_p=0.9):
-            if tok:  # Only yield non-empty tokens
+            if tok:
                 answer_parts.append(tok)
                 yield tok
                 token_count += 1
-                
-                # Safety check to prevent infinite loops
                 if token_count > 1000:
                     break
     except Exception as e:
@@ -135,7 +249,6 @@ def generate_response(user_input: str, history=None):
 
     answer = "".join(answer_parts).strip()
 
-    # Check if we got a meaningful response
     if not answer or len(answer.split()) < 3:
         fallback = ("I'm not entirely sure how to answer that. "
                     "Please visit https://www.nileedgeinnovations.org "
@@ -143,7 +256,7 @@ def generate_response(user_input: str, history=None):
         yield fallback
         return
 
-    # update cache (LRU)
+    # Cache the response
     response_cache[key] = {
         "answer": answer,
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
@@ -152,6 +265,7 @@ def generate_response(user_input: str, history=None):
         del response_cache[next(iter(response_cache))]
 
     save_data()
+
 
 def save_data():
     try:
