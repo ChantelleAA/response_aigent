@@ -6,3 +6,5 @@ llama-cpp-python
 gradio
 tf-keras
 json
+python-dotenv
+gradio>=4.12

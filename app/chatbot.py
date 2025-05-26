@@ -1,149 +1,161 @@
-import sys
-import os
-import json
-import time
+import sys, os, json, time, pathlib
 from collections import OrderedDict
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.retrieval import query_vector_store
-from app.config import VECTOR_COLLECTION, MODEL_PATH
-from llama_cpp import Llama
+from app.config    import VECTOR_COLLECTION
+from app.llm       import get_engine
 
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+# ─────────────────────────────────────────────
+# env + model
+# ─────────────────────────────────────────────
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+os.environ["TF_CPP_MIN_LOG_LEVEL"]  = "2"
 
-llm = Llama(model_path=MODEL_PATH, n_ctx=2048, n_threads=4)
+engine   = get_engine()                        # loads GGUF once
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Load or initialize cache
-CACHE_FILE = "data/faq_cache.json"
-QUESTION_LOG_FILE = "data/questions_log.json"
-CACHE_LIMIT = 1000
+# ─────────────────────────────────────────────
+# paths
+# ─────────────────────────────────────────────
+DATA_DIR           = pathlib.Path("data")
+DATA_DIR.mkdir(exist_ok=True)
 
-# Load cache
-try:
-    with open(CACHE_FILE, "r", encoding="utf-8") as f:
-        content = f.read().strip()
-        response_cache = json.loads(content) if content else {}
-except (FileNotFoundError, json.JSONDecodeError):
-    response_cache = {}
+CACHE_FILE         = DATA_DIR / "faq_cache.json"
+QUESTION_LOG_FILE  = DATA_DIR / "questions_log.json"
+CACHE_LIMIT        = 1_000
 
-# Keep cache ordered
-response_cache = OrderedDict(response_cache)
+def _load_json(path, default):
+    try:
+        txt = path.read_text(encoding="utf-8")
+        return json.loads(txt) if txt.strip() else default
+    except (FileNotFoundError, json.JSONDecodeError):
+        return default
 
-# Load question log
-try:
-    with open(QUESTION_LOG_FILE, "r", encoding="utf-8") as f:
-        content = f.read().strip()
-        question_log = json.loads(content) if content else []
-except (FileNotFoundError, json.JSONDecodeError):
-    question_log = []
+response_cache = OrderedDict(_load_json(CACHE_FILE, {}))
+question_log   = _load_json(QUESTION_LOG_FILE, [])
 
-
-def semantic_faq_match(user_input):
+# ─────────────────────────────────────────────
+# semantic FAQ
+# ─────────────────────────────────────────────
+def semantic_faq_match(user_input: str):
     if not response_cache:
         return None
-
-    user_embedding = embedder.encode([user_input])[0]
-    questions = list(response_cache.keys())
-    question_embeddings = embedder.encode(questions)
-
-    similarities = cosine_similarity([user_embedding], question_embeddings)[0]
-    best_idx = similarities.argmax()
-    if similarities[best_idx] >= 0.85:
-        matched_question = questions[best_idx]
-        print(f"[FAQ MATCH] Matched: {matched_question}")
-        return response_cache[matched_question]["answer"]
-
+    user_emb        = embedder.encode([user_input])[0]
+    questions       = list(response_cache.keys())
+    question_embeds = embedder.encode(questions)
+    sims            = cosine_similarity([user_emb], question_embeds)[0]
+    best_idx        = sims.argmax()
+    if sims[best_idx] >= 0.85:
+        return response_cache[questions[best_idx]]["answer"]
     return None
 
-# Generate response
-def generate_response(user_input, history=None):
-
+# ─────────────────────────────────────────────
+# main generator
+# ─────────────────────────────────────────────
+def generate_response(user_input: str, history=None):
+    """Yields tokens so the UI can stream them."""
     if not user_input.strip():
-        return "Please enter a valid question so I can assist you."
+        yield "Please enter a valid question so I can assist you."
+        return
 
     key = user_input.strip().lower()
 
-    faq_answer = semantic_faq_match(user_input)
+    # 1) semantic FAQ hit
+    faq_ans = semantic_faq_match(user_input)
+    if faq_ans:
+        yield faq_ans
+        return
 
-    if faq_answer:
-        return faq_answer
+    # 2) question log
+    question_log.append({"question": key,
+                         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")})
 
-    question_log.append({
-        "question": key,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
-    })
-
+    # 3) literal cache hit
     if key in response_cache:
-        print(f"[CACHE HIT] \"{user_input}: {key}\"")
         response_cache.move_to_end(key)
-        return response_cache[key]["answer"]
+        yield response_cache[key]["answer"]
+        return
 
+    # 4) RAG context + short memory
     context_list = query_vector_store(user_input, VECTOR_COLLECTION)
-    context = "\n".join(context_list)
+    context      = "\n".join(context_list)
 
     memory = ""
     if history:
-        for q, a in history[-5:]:
+        valid_history = [item for item in (history or []) if isinstance(item, (list, tuple)) and len(item) == 2]
+        for q, a in valid_history[-5:]:
             memory += f"User: {q}\nAssistant: {a}\n"
 
+
     prompt = f"""
-        You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
+You are a friendly, professional assistant for NileEdge Innovations, a company offering AI solutions, data science, automation, and digital transformation.
 
-        Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team. Always maintain a respectful tone.
+Be polite, helpful, and clear in your responses. If the question is not fully answerable with the information provided, kindly suggest visiting https://www.nileedgeinnovations.org or contacting the support team.
 
-        Only use the information provided in the "Context" section to answer. Avoid guessing or making up information.
+Only use the information provided in the "Context" section to answer. Avoid guessing.
 
-        Context:
-        {context}
+Context:
+{context}
 
-        {memory}User: {user_input}
-        Assistant:"""
+{memory}User: {user_input}
+Assistant:"""
 
-    response = llm(prompt=prompt, max_tokens=512, stop=["User:", "Assistant:"])
-    answer = response["choices"][0]["text"].strip()
-    if not answer or len(answer.split()) < 5:
-        return "I'm not entirely sure how to answer that. You can visit our website at https://www.nileedgeinnovations.org or contact us for assistance. We're happy to help!"
+    answer_parts = []
+    for tok in engine.stream(prompt,
+                             max_tokens=256,
+                             stop=["User:", "Assistant:"],
+                             temperature=0.7,
+                             top_p=0.9):
+        answer_parts.append(tok)
+        yield tok                        # <-- stream outward
 
+    answer = "".join(answer_parts).strip()
+
+    if len(answer.split()) < 5:
+        fallback = ("I'm not entirely sure how to answer that. "
+                    "Please visit https://www.nileedgeinnovations.org "
+                    "or contact us for assistance.")
+        yield fallback
+        return
+
+    # update cache (LRU)
     response_cache[key] = {
         "answer": answer,
-        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
-
     if len(response_cache) > CACHE_LIMIT:
         del response_cache[next(iter(response_cache))]
 
-    return answer
+    save_data()
 
-# Save data
+
+# ─────────────────────────────────────────────
+# persist
+# ─────────────────────────────────────────────
 def save_data():
-    try:
-        with open(CACHE_FILE, "r", encoding="utf-8") as f:
-            existing = json.load(f)
-    except:
-        existing = {}
+    CACHE_FILE.write_text(json.dumps(response_cache,
+                                     indent=2, ensure_ascii=False),
+                          encoding="utf-8")
+    QUESTION_LOG_FILE.write_text(json.dumps(question_log,
+                                            indent=2, ensure_ascii=False),
+                                 encoding="utf-8")
 
-    for k, v in response_cache.items():
-        existing[k] = v
+# ─────────────────────────────────────────────
+# minimal CLI test
+# ─────────────────────────────────────────────
+# if __name__ == "__main__":
+#     import gradio as gr, atexit
+#     atexit.register(save_data)
 
-    with open(CACHE_FILE, "w", encoding="utf-8") as f:
-        json.dump(existing, f, indent=2, ensure_ascii=False)
+#     def chat(user_msg, hist):
+#         bot_stream = generate_response(user_msg, hist)
+#         hist = hist or []
+#         hist.append([user_msg, ""])
+#         for tok in bot_stream:
+#             hist[-1][1] += tok
+#             yield hist, hist
 
-    with open(QUESTION_LOG_FILE, "w", encoding="utf-8") as f:
-        json.dump(question_log, f, indent=2, ensure_ascii=False)
-
-
-# Launch Gradio
-if __name__ == "__main__":
-    import gradio as gr
-    import atexit
-    atexit.register(save_data)
-
-    def chat(user_message, history):
-        reply = generate_response(user_message, history)
-        history.append((user_message, reply))
-        return history, history
-
-    gr.ChatInterface(fn=chat, chatbot=gr.Chatbot(), title="Ask NileEdge AI").launch(share=True)
+#     gr.ChatInterface(fn=chat, chatbot=gr.Chatbot(), title="Ask NileEdge AI").launch(share=True)
