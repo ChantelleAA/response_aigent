@@ -1,2 +1,6 @@
 mistral.gguf
+.env
 nileedge_venv
+config.py
+.gradio
+assets
