@@ -6,6 +6,7 @@ import argparse
 import sys
 import os
 from chatbot import semantic_faq_match
+import time
 
 # Ensure imports work relative to project root
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -161,7 +162,6 @@ def process_emails():
         print("Response sent.")
 
 
-import time
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
