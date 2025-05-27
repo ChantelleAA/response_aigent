@@ -1,62 +1,64 @@
 # NileEdge AI Assistant
 
-The NileEdge AI Assistant is a context-aware chatbot that answers queries about NileEdge Innovations using a combination of:
+The **NileEdge AI Assistant** is a locally hosted chatbot built for NileEdge Innovations. It provides accurate, context-aware answers using:
 
 * Semantic FAQ matching
 * Vector-based document retrieval
-* Local language model (LLM) inference
-* A simple Gradio interface
+* Local LLM inference (e.g., Mistral)
+* Audio transcription using Whisper
+* A custom web interface (HTML/CSS/JS)
 
-It is designed for efficient customer interaction and scalable knowledge support.
+This assistant is private, extendable, and runs entirely on your machine.
 
+---
 
-## Project Objectives
+## Project Goals
 
-* Provide accurate, contextually relevant answers from company knowledge.
-* Reduce LLM usage by using a semantic cache for known questions.
-* Retrieve up-to-date context from scraped data using vector search.
-* Log user queries for analysis and FAQ enrichment.
-* Offer a locally hosted chatbot interface for privacy and flexibility.
+* Provide meaningful answers about NileEdge Innovations
+* Minimize LLM usage through semantic caching
+* Use local models and embeddings to preserve privacy
+* Enable audio-based queries
+* Log user queries for future improvements
 
+---
 
 ## File Structure
 
 ```
 response_aigent/
-├── .gradio/                    # Gradio session files (if any)
-├── app/
-│   ├── __init__.py             # Marks 'app' as a Python package
-│   ├── chatbot.py              # Core logic to handle chatbot flow
-│   ├── config.py               # Configuration (paths, constants)
-│   ├── email_agent.py          # Email handling (if enabled)
-│   ├── retrieval.py            # Vector search and context fetching
-│   ├── scraper.py              # Website scraping utilities
-│   └── assets/                 # Static files (images/icons)
-│       ├── bot_avatar.png
-│       ├── favicon.ico
-│       ├── logo.png
-│       └── logo_small.png
+├── app/                        # Core logic (chatbot, retrieval, config)
+├── assets/                     # (If used elsewhere, optional)
+├── data/                       # Vector data and logs
+│   ├── chat_history.json
+│   ├── faq_cache.json
+│   ├── questions_log.json
+│   ├── scraped_pages.json
+│   └── website_data.json
 │
-├── data/                       # Cached and processed knowledge
-│   ├── chat_history.json       # Stores complete chat sessions
-│   ├── faq_cache.json          # Static cache for known FAQ matches
-│   ├── questions_log.json      # Logs new questions
-│   ├── scraped_pages.json      # Raw scraped text from the website
-│   └── website_data.json       # Cleaned and preprocessed documents
-│
-├── models/
-│   └── mistral.gguf            # Local quantized LLM model
+├── models/                     # Local quantized LLM (.gguf)
+│   └── mistral.gguf
 │
 ├── scripts/
-│   └── refresh_kb.py           # Script to scrape, clean, and embed data
+│   └── refresh_kb.py           # Scrape and embed site content
 │
-├── .env                        # Environment variables (e.g., ports, keys)
-├── .gitignore                  # Ignore Python cache, env, and logs
-├── run_chatbot.py              # Entry-point script to launch the bot
-├── requirements.txt            # Python dependencies
-└── README.md                   # Project documentation
+├── static/                     # Frontend resources
+│   ├── favicon.ico
+│   ├── logo.png
+│   ├── logo-round.png
+│   ├── nileedge_logo_round.png
+│   └── style.css
+│
+├── templates/
+│   └── chat.html               # Chat interface template
+│
+├── server.py                   # Flask app entry point
+├── run_chatbot.py              # (Legacy Gradio app if needed)
+├── requirements.txt
+├── .env
+└── README.md
 ```
 
+---
 
 ## Setup Instructions
 
@@ -67,71 +69,88 @@ git clone https://github.com/your-username/response_aigent.git
 cd response_aigent
 ```
 
-### 2. Set Up Your Environment
+### 2. Set Up Python 3.11 Environment
 
-Create a virtual environment and activate it:
+Ensure you have Python 3.11 installed. Then:
 
 ```bash
-python3 -m venv venv
-source venv/bin/activate     # macOS/Linux
-venv\Scripts\activate        # Windows
+python -m venv nileedge_venv
+nileedge_venv\Scripts\activate       # On Windows
+# OR
+source nileedge_venv/bin/activate    # On macOS/Linux
 ```
 
-### 3. Install Dependencies
+### 3. Install Required Packages
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Prepare the Model
+Make sure `ffmpeg` is installed for audio transcription:
 
-Download and place your quantized model (e.g., Mistral) in the models/ directory. Update app/config.py with the correct path.
+* On Linux: `sudo apt install ffmpeg`
+* On Windows: [Download FFmpeg](https://ffmpeg.org/download.html) and add it to PATH
 
-### 5. Populate the Vector Database
+---
 
-Run the script to scrape and embed website data:
+### 4. Prepare the LLM Model
+
+Download a quantized `.gguf` model (e.g., Mistral) and place it in the `models/` directory.
+
+Set the correct path in `app/config.py`.
+
+---
+
+### 5. Scrape and Embed Website Content
 
 ```bash
 python scripts/refresh_kb.py
 ```
 
-This will store vectorized documents in the configured Chroma vector store.
+This generates `website_data.json` and populates the vector store.
 
-### 6. Run the Chatbot
+---
+
+### 6. Start the Server
 
 ```bash
-python run_chatbot.py
+python server.py
 ```
 
-A Gradio interface will launch in your browser.
+The app will be available at:
+[http://localhost:5000](http://localhost:5000)
 
+---
 
-## How It Works
+## Features
 
-1. A user submits a question.
-2. The bot checks for a high-similarity match in the faq\_cache.json.
-3. If none is found:
+* Supports both text and voice input
+* Transcribes audio to text using Whisper
+* Checks for known FAQ matches before calling the LLM
+* Uses vector search for context from website data
+* Clean, modern UI styled for the NileEdge brand
 
-   * The question is logged.
-   * Related context is fetched via vector search.
-   * A prompt is created and sent to the local LLM.
-4. The answer is returned, logged, and optionally cached for future use.
+---
 
+## Logging
 
-## Logging and QA Improvement
+* `data/chat_history.json` – Full chat transcripts
+* `data/questions_log.json` – New questions not in cache
+* `data/faq_cache.json` – Stored Q\&A for instant lookup
 
-* data/questions\_log.json logs new questions for future analysis.
-* data/chat\_history.json stores full chat transcripts.
-* To improve the assistant, periodically review the logs and update faq\_cache.json or source data.
+Review these files regularly to improve the assistant's performance.
 
+---
 
-## Customization Tips
+## Customization
 
-* Modify app/scraper.py to target new URLs.
-* Update app/config.py to change thresholds and settings.
-* Replace the model in models/ if you prefer a different quantized LLM.
+* Edit `templates/chat.html` and `static/style.css` to adjust UI
+* Use your own `.gguf` models in `models/`
+* Modify `scripts/refresh_kb.py` to target other URLs
+* Tweak vector search logic in `app/retrieval.py`
 
+---
 
 ## License
 
-This project is released under the MIT License.
+This project is licensed under the MIT License.
