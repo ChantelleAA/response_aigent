@@ -5,8 +5,8 @@ from email.mime.text import MIMEText
 import argparse
 import sys
 import os
-from chatbot import semantic_faq_match
 import time
+from chatbot import semantic_faq_match
 
 # Ensure imports work relative to project root
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -20,15 +20,16 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 engine = get_engine()
 
+FAILED_EMAILS = []
+MAX_RETRIES = 3
+RETRY_DELAY = 60  # seconds
+
 def generate_email_response(user_input: str, history=None) -> str:
-    """Generates a formal, complete email reply with fallback logic."""
     from app.retrieval import query_vector_store
     from app.config import VECTOR_COLLECTION
-    import time
 
     key = user_input.strip().lower()
 
-    # Fallback for empty input
     if not user_input.strip():
         fallback = (
             "We received your message, but it seems there wasn’t enough detail for us to provide a specific answer. "
@@ -36,12 +37,10 @@ def generate_email_response(user_input: str, history=None) -> str:
         )
         return format_email_reply(fallback)
 
-    # 1) semantic FAQ match
     faq_ans = semantic_faq_match(user_input)
     if faq_ans:
         return format_email_reply(faq_ans)
 
-    # 2) vector store context
     try:
         context_list = query_vector_store(user_input, VECTOR_COLLECTION)
         context = "\n".join(context_list) if context_list else ""
@@ -49,7 +48,6 @@ def generate_email_response(user_input: str, history=None) -> str:
         print(f"Error querying vector store: {e}")
         context = ""
 
-    # 3) LLM prompt
     prompt = f"""
 You are a professional email assistant for NileEdge Innovations, a company offering AI, Data Science, and Automation services.
 
@@ -79,7 +77,6 @@ Email Response:
             "we’re here to help and ready to discuss further."
         )
 
-    # Fallback for low-confidence replies
     if len(raw_reply.split()) < 15 or any(phrase in raw_reply.lower() for phrase in ["i'm not sure", "don't know", "cannot answer"]):
         raw_reply = (
             "Thank you for your message. We’re happy to support you, although we may need a bit more information "
@@ -107,7 +104,6 @@ def format_email_reply(main_content: str) -> str:
 
     return f"{salutation}{thank_you}{main_content.strip()}{contact_details}{closing}"
 
-
 def check_unread_emails():
     imap = imaplib.IMAP4_SSL(IMAP_SERVER)
     imap.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
@@ -122,7 +118,7 @@ def check_unread_emails():
     for mail_id in mail_ids:
         status, data = imap.fetch(mail_id, '(RFC822)')
         msg = email.message_from_bytes(data[0][1])
-        subject = msg["subject"]
+        subject = msg["subject"] or "Your Inquiry"
         from_addr = email.utils.parseaddr(msg["from"])[1]
         payload = msg.get_payload(decode=True)
         body = payload.decode() if payload else ""
@@ -131,37 +127,45 @@ def check_unread_emails():
     imap.logout()
     return unread_emails
 
-
 def send_email(to_addr, subject, body):
     if hasattr(body, '__iter__') and not isinstance(body, str):
         body = "".join(body)
 
-    msg = MIMEText(body)
-    msg["Subject"] = f"Re: {subject}"
+    msg = MIMEText(body, "plain", "utf-8")
+    msg["Subject"] = f"Re: {subject or 'Your Inquiry'}"
     msg["From"] = EMAIL_ADDRESS
     msg["To"] = to_addr
 
-    smtp = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
-    smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-    smtp.send_message(msg)
-    smtp.quit()
+    for attempt in range(MAX_RETRIES):
+        try:
+            smtp = smtplib.SMTP_SSL(SMTP_SERVER, SMTP_PORT)
+            smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
+            smtp.send_message(msg)
+            smtp.quit()
+            return True
+        except Exception as e:
+            print(f"Failed to send email to {to_addr}: {e} (Attempt {attempt + 1})")
+            time.sleep(RETRY_DELAY)
 
+    FAILED_EMAILS.append((to_addr, subject, body))
+    return False
 
 def process_emails():
     emails = check_unread_emails()
-    print(f"Found {len(emails)} unread emails.")
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Found {len(emails)} unread emails.")
     for mail in emails:
         print(f"\n--- Processing ---\nFrom: {mail['from']}\nSubject: {mail['subject']}\nBody:\n{mail['body']}")
         reply = generate_email_response(mail["body"])
         print(f"\nReplying with:\n{reply}")
-        send_email(mail["from"], mail["subject"], reply)
+        success = send_email(mail["from"], mail["subject"], reply)
 
         with open("sent_log.txt", "a", encoding="utf-8") as f:
-            f.write(f"\nTo: {mail['from']}\nSubject: {mail['subject']}\nReply:\n{reply}\n{'-'*60}\n")
+            f.write(f"\nTo: {mail['from']}\nSubject: {mail['subject']}\nReply:\n{reply}\nStatus: {'Sent' if success else 'Failed'}\n{'-'*60}\n")
 
-        print("Response sent.")
-
-
+        if success:
+            print("Response sent.")
+        else:
+            print("Failed to send response after retries.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -178,4 +182,3 @@ if __name__ == "__main__":
             process_emails()
             print(f"Sleeping for {args.interval} seconds...")
             time.sleep(args.interval)
-

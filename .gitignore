@@ -4,3 +4,4 @@ nileedge_venv
 config.py
 .gradio
 assets
+log
