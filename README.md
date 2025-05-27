@@ -52,7 +52,8 @@ response_aigent/
 │   └── chat.html               # Chat interface template
 │
 ├── server.py                   # Flask app entry point
-├── run_chatbot.py              # (Legacy Gradio app if needed)
+├── app/email_agent.py          # Background email response script
+├── launch.bat / launch.sh      # Run both scripts persistently
 ├── requirements.txt
 ├── .env
 └── README.md
@@ -111,14 +112,35 @@ This generates `website_data.json` and populates the vector store.
 
 ---
 
-### 6. Start the Server
+### 6. Run Both Services Persistently
+
+#### Option A: Using Supervisor (Recommended for Production)
+
+1. Install Supervisor:
+   ```bash
+   pip install supervisor
+   ```
+2. Use the provided `supervisord.conf`, update paths, and run:
+   ```bash
+   supervisord -c supervisord.conf
+   ```
+
+#### Option B: Using Bash Script (Linux/macOS)
 
 ```bash
-python server.py
+bash launch.sh
 ```
 
-The app will be available at:
-[http://localhost:5000](http://localhost:5000)
+#### Option C: Using Batch Script (Windows)
+
+```bat
+launch.bat
+```
+
+These scripts will:
+- Start the Flask server
+- Start the email agent in `--mode scheduled`
+- Log all output to `logs/`
 
 ---
 
@@ -129,6 +151,7 @@ The app will be available at:
 * Checks for known FAQ matches before calling the LLM
 * Uses vector search for context from website data
 * Clean, modern UI styled for the NileEdge brand
+* Email responder supports retry logic and scheduled polling
 
 ---
 
@@ -136,9 +159,9 @@ The app will be available at:
 
 * `data/chat_history.json` – Full chat transcripts
 * `data/questions_log.json` – New questions not in cache
-* `data/faq_cache.json` – Stored Q\&A for instant lookup
-
-Review these files regularly to improve the assistant's performance.
+* `data/faq_cache.json` – Stored Q&A for instant lookup
+* `sent_log.txt` – Email replies with success/failure status
+* `logs/*.log` – Output/error logs for both Flask and email agent
 
 ---
 
@@ -148,6 +171,7 @@ Review these files regularly to improve the assistant's performance.
 * Use your own `.gguf` models in `models/`
 * Modify `scripts/refresh_kb.py` to target other URLs
 * Tweak vector search logic in `app/retrieval.py`
+* Update email signature, fallback messages, or interval timing in `app/email_agent.py`
 
 ---
 
