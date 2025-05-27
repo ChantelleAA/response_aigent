@@ -1,4 +1,6 @@
 # NileEdge AI Assistant
+<img width="25%" align="right" alt="NileEdge AI demo"
+src="https://github.com/ChantelleAA/response_aigent/blob/main/nileedgechatbot.gif" />
 
 The NileEdge AI Assistant is a context-aware chatbot that answers queries about NileEdge Innovations using a combination of:
 
