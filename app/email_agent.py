@@ -161,10 +161,21 @@ def process_emails():
         print("Response sent.")
 
 
+import time
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=["manual", "scheduled"], default="manual")
+    parser.add_argument("--interval", type=int, default=300, help="Interval in seconds between email checks")
     args = parser.parse_args()
 
     print(f"Running email agent in {args.mode} mode...")
-    process_emails()
+
+    if args.mode == "manual":
+        process_emails()
+    else:
+        while True:
+            process_emails()
+            print(f"Sleeping for {args.interval} seconds...")
+            time.sleep(args.interval)
+
