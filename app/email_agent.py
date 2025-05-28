@@ -24,66 +24,159 @@ FAILED_EMAILS = []
 MAX_RETRIES = 3
 RETRY_DELAY = 60  # seconds
 
+# -----------------------------------------------------------------
+# 1.  generate_email_response (replace the entire old function)
+# -----------------------------------------------------------------
 def generate_email_response(user_input: str, history=None) -> str:
+    """
+    Build a full, formal reply.  We now:
+      • keep a stronger prompt
+      • require ≥60 words
+      • only fall back if the model completely fails
+    """
     from app.retrieval import query_vector_store
     from app.config import VECTOR_COLLECTION
 
-    key = user_input.strip().lower()
-
+    # ─────────────────────────────────────────────────────────────
+    # 0. Empty input → quick polite prompt for detail
+    # ─────────────────────────────────────────────────────────────
     if not user_input.strip():
-        fallback = (
-            "We received your message, but it seems there wasn’t enough detail for us to provide a specific answer. "
-            "However, we're always happy to assist further."
+        return format_email_reply(
+            "We received your message, but it seems there wasn’t enough detail "
+            "for us to provide a specific answer just yet. "
+            "Please let us know a bit more and we’ll be happy to help."
         )
-        return format_email_reply(fallback)
 
+    # ─────────────────────────────────────────────────────────────
+    # 1. FAQ       → instant answer
+    # ─────────────────────────────────────────────────────────────
     faq_ans = semantic_faq_match(user_input)
     if faq_ans:
         return format_email_reply(faq_ans)
 
+    # ─────────────────────────────────────────────────────────────
+    # 2. Vector search context
+    # ─────────────────────────────────────────────────────────────
     try:
         context_list = query_vector_store(user_input, VECTOR_COLLECTION)
         context = "\n".join(context_list) if context_list else ""
     except Exception as e:
-        print(f"Error querying vector store: {e}")
+        print(f"[WARN] vector search failed: {e}")
         context = ""
 
+    # ─────────────────────────────────────────────────────────────
+    # 3. Prompt the local LLM
+    # ─────────────────────────────────────────────────────────────
     prompt = f"""
-You are a professional email assistant for NileEdge Innovations, a company offering AI, Data Science, and Automation services.
+You are a professional email assistant for NileEdge Innovations (AI, Data-Science, Automation).
 
-Your reply should:
-- Thank the customer for contacting us
-- Politely respond using the given context
-- Encourage the customer to visit the website, call, or come to our office
-- End with a professional sign-off
+Write a **formal email** in at least **60 words**.  
+Always:
+• Thank the customer for contacting us.  
+• Address their question using ONLY the context if possible.  
+• If context is weak, still give a helpful, reasonable answer (do *not* say you are uncertain).  
+• Close by inviting them to visit the website or call.
 
 Context:
-{context}
+{context if context else '[no extra context]'}
 
-Customer's Message:
+Customer message:
 {user_input}
 
-Email Response:
+Email reply:
 """
     try:
         tokens = []
-        for tok in engine.stream(prompt, max_tokens=512, stop=["Customer's Message:", "Email Response:"], temperature=0.7, top_p=0.9):
+        # only ONE stop string so output isn't truncated immediately
+        for tok in engine.stream(
+            prompt,
+            max_tokens=512,
+            stop=["Customer message:"],
+            temperature=0.7,
+            top_p=0.9,
+        ):
             tokens.append(tok)
         raw_reply = "".join(tokens).strip()
+        print(f"[DEBUG] LLM raw reply →\n{raw_reply}\n")
     except Exception as e:
-        print(f"Error generating email reply: {e}")
-        raw_reply = (
-            "We appreciate your message. While we may need more details to respond accurately, "
-            "we’re here to help and ready to discuss further."
-        )
+        print(f"[ERR] LLM failure: {e}")
+        raw_reply = ""
 
-    if len(raw_reply.split()) < 15 or any(phrase in raw_reply.lower() for phrase in ["i'm not sure", "don't know", "cannot answer"]):
+    # ─────────────────────────────────────────────────────────────
+    # 4. Minimal fallback only if model fully empty
+    # ─────────────────────────────────────────────────────────────
+    if not raw_reply:
         raw_reply = (
-            "Thank you for your message. We’re happy to support you, although we may need a bit more information "
-            "to provide a complete answer. Please feel free to get in touch directly using the contact options below."
+            "Thank you for reaching out. We are reviewing your question and "
+            "will respond with detailed information shortly. "
+            "Meanwhile, feel free to call or visit the website below."
         )
 
     return format_email_reply(raw_reply)
+
+
+# def generate_email_response(user_input: str, history=None) -> str:
+#     from app.retrieval import query_vector_store
+#     from app.config import VECTOR_COLLECTION
+
+#     key = user_input.strip().lower()
+
+#     if not user_input.strip():
+#         fallback = (
+#             "We received your message, but it seems there wasn’t enough detail for us to provide a specific answer. "
+#             "However, we're always happy to assist further."
+#         )
+#         return format_email_reply(fallback)
+
+#     faq_ans = semantic_faq_match(user_input)
+#     if faq_ans:
+#         return format_email_reply(faq_ans)
+
+#     try:
+#         context_list = query_vector_store(user_input, VECTOR_COLLECTION)
+#         context = "\n".join(context_list) if context_list else ""
+#     except Exception as e:
+#         print(f"Error querying vector store: {e}")
+#         context = ""
+
+#     prompt = f"""
+# You are a professional email assistant for NileEdge Innovations, a company offering AI, Data Science, and Automation services.
+
+# Your task is to write a full, formal email reply to a customer inquiry. Be confident and informative using the context provided.
+
+# Instructions:
+# - Start by thanking the customer for their message
+# - Use the provided context to respond specifically to their concern
+# - If context is weak, still try your best to infer an answer
+# - Finish with a professional closing, and suggest visiting the website or calling
+
+# Context:
+# {context}
+
+# Customer's Message:
+# {user_input}
+
+# Email Response:
+# """
+#     try:
+#         tokens = []
+#         for tok in engine.stream(prompt, max_tokens=512, stop=["Customer's Message:", "Email Response:"], temperature=0.7, top_p=0.9):
+#             tokens.append(tok)
+#         raw_reply = "".join(tokens).strip()
+#     except Exception as e:
+#         print(f"Error generating email reply: {e}")
+#         raw_reply = (
+#             "We appreciate your message. While we may need more details to respond accurately, "
+#             "we’re here to help and ready to discuss further."
+#         )
+
+#     if len(raw_reply.split()) < 15 or any(phrase in raw_reply.lower() for phrase in ["i'm not sure", "don't know", "cannot answer"]):
+#         raw_reply = (
+#             "Thank you for your message. We’re happy to support you, although we may need a bit more information "
+#             "to provide a complete answer. Please feel free to get in touch directly using the contact options below."
+#         )
+
+#     return format_email_reply(raw_reply)
 
 def format_email_reply(main_content: str) -> str:
     salutation = "Dear Valued Customer,\n\n"
