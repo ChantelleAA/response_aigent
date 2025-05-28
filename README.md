@@ -7,7 +7,7 @@ The NileEdge AI Assistant is a context-aware chatbot that answers queries about 
 * Semantic FAQ matching
 * Vector-based document retrieval
 * Local language model (LLM) inference
-* A simple Gradio interface
+* A simple Flask API
 
 It is designed for efficient customer interaction and scalable knowledge support.
 
